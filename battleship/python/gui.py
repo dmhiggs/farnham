@@ -1,6 +1,7 @@
 # this file is for the GUI code
 
 from tkinter import*
+from random import*
 
 
 class GameBoard():
@@ -13,11 +14,15 @@ class GameBoard():
     info = Label(instructions, text = "Pick a Ship to Place on Your Ships", bd = 0, justify = CENTER)
     buttons = {}
     setbuttons = {}
+    enemys = {}
     s = {}
     
     enemyships = []
     ships = []
     shipsindex = -1
+
+    player = 0
+    enemy = 0
 
 
     def __init__(self):
@@ -50,8 +55,9 @@ class GameBoard():
         for i in range(4):
             s = Ship(i+2)
             if i + 2 == 3:
-                self.enemyships.append(s)
-                self.ships.append(s)
+                t = Ship(3)
+                self.enemyships.append(t)
+                self.ships.append(t)
             self.enemyships.append(s)
             self.ships.append(s)
 
@@ -80,7 +86,7 @@ class GameBoard():
         for r in range(10):
             for c in range(10):
                 index = r*10+c
-                self.setbuttons[index] = Button(self.shipsframe, relief = GROOVE, bd = 1, bg="light blue", height = 1, width=2, command = lambda i =index: self.place(i))
+                self.setbuttons[index] = Button(self.shipsframe, relief = GROOVE, bd = 1, bg="light blue", height = 1, width=2, command = lambda i =index: self.place(i,0))
                 self.setbuttons[index].grid(row=r,column=c)
         return
 
@@ -94,16 +100,42 @@ class GameBoard():
                 index = r*10+c
                 self.buttons[index] = Button(self.enemyframe, relief = GROOVE, bd = 1, bg="light blue", height = 1, width=2, command = lambda i =index: self.shot(i))
                 self.buttons[index].grid(row=r,column=c)
+
+                #setting it so that empty cells equal 0, full cells equal 1
+                self.enemys[index] = (0,-1)
+
+        self.enemyplacement()
         return
 
 
+    def enemyplacement(self):
+        #5, 4, 3, 3, 2
+        self.shipsindex = -1
+        for ship in self.enemyships:
+            placed = False
+            self.shipsindex += 1
+            while placed == False:
+                index = randrange(0,110)
+                self.place(index, 1)
+
+                placed = self.enemyships[self.shipsindex].isplaced()
+        return
 
     def shot(self, index):
         #blue = water, black = ship, red = hit, white = miss
-        if self.buttons[index].cget('bg') == "light blue":
+        if self.enemys[index][0] == 0:
             self.buttons[index].configure(bg = "white")
         else:
             self.buttons[index].configure(bg = "red")
+            self.ships[self.enemys[index][1]].hit()
+            
+            if self.ships[self.enemys[index][1]].issunk():
+                #sink a ship
+                self.player += 1
+
+                if self.player == 5:
+                    self.win()
+                
         self.buttons[index].configure(state = DISABLED)
 
         #######
@@ -115,46 +147,85 @@ class GameBoard():
         
         return
 
-    def place(self, index):
+    def win(self):
+        winner = "You Win!"
+        if self.player < self.enemy:
+            winner = "Enemy Wins!"
+
+        top = Toplevel()
+        top.title("Winner")
+        msg = Message(top, text = winner,)
+        msg.pack()
+
+        button = Button(top, text="ok", command = top.destroy)
+        button.pack()
+
+    def place(self, index, eorp):
+        whichships = [self.ships[self.shipsindex], self.enemyships[self.shipsindex]]
+        
         if self.shipsindex < 0:
             return
-        
-        #if ship already there, return
-        if self.setbuttons[index].cget('bg') == "dark gray" and self.ships[self.shipsindex].getplace() != index:
+
+        if eorp == 0:
+            #if ship already there, return
+            if self.setbuttons[index].cget('bg') == "dark gray" and whichships[eorp].getplace() != index:
+                return
+        else:
+            if self.enemys[index][0] == 1 and whichships[eorp].getplace() != index:
+                return
+        if whichships[eorp].isplaced() and whichships[eorp].getplace() != index:
             return
-        elif self.ships[self.shipsindex].isplaced() and self.ships[self.shipsindex].getplace() != index:
-            return
-        elif self.ships[self.shipsindex].getplace() == index:
-            if self.ships[self.shipsindex].direction() != True:
-                for i in range(self.ships[self.shipsindex].getsize()):
-                    self.setbuttons[index+10*i].configure(bg = "light blue")
+        elif whichships[eorp].getplace() == index:
+            if whichships[eorp].direction() != True:
+                for i in range(whichships[eorp].getsize()):
+                    if eorp == 0:
+                        self.setbuttons[index+10*i].configure(bg = "light blue")
+                    else:
+                        self.enemys[index+10*i] = (0, -1)
             else:
-                for i in range(self.ships[self.shipsindex].getsize()):
-                    self.setbuttons[index+i].configure(bg = "light blue")
-            self.ships[self.shipsindex].direction()
+                for i in range(whichships[eorp].getsize()):
+                    if eorp ==0:
+                        self.setbuttons[index+i].configure(bg = "light blue")
+                    else:
+                        self.enemys[index+10*i] = (0, -1)
+            whichships[eorp].direction()
             
 
         #if ship size will make the ship go off the board return
-        if self.ships[self.shipsindex].direction():
-            if index + 10*self.ships[self.shipsindex].getsize() < 110:
-                for i in range(self.ships[self.shipsindex].getsize()):
-                    if self.setbuttons[index+10*i].cget('bg') == "dark gray":
-                        return
-                for i in range(self.ships[self.shipsindex].getsize()):
-                    self.setbuttons[index+10*i].configure(bg = "dark gray")
+        if whichships[eorp].direction():
+            if index + 10*whichships[eorp].getsize() < 110:
+                for i in range(whichships[eorp].getsize()):
+                    if eorp ==0:
+                        if self.setbuttons[index+10*i].cget('bg') == "dark gray":
+                            return
+                    else:
+                        if self.enemys[index+10*i][1] == 1:
+                            return
+                for i in range(whichships[eorp].getsize()):
+                    if eorp == 0:
+                        self.setbuttons[index+10*i].configure(bg = "dark gray")
+                    else:
+                        self.enemys[index+10*i] = (1,self.shipsindex)
             else:
                 return
         else:
-            if index % 10 + self.ships[self.shipsindex].getsize() < 11:
-                for i in range(self.ships[self.shipsindex].getsize()):
-                    if self.setbuttons[index+i].cget('bg') == "dark gray":
-                        return
-                for i in range(self.ships[self.shipsindex].getsize()):
-                    self.setbuttons[index+i].configure(bg = "dark gray")
+            if index % 10 + whichships[eorp].getsize() < 11:
+                for i in range(whichships[eorp].getsize()):
+                    if eorp == 0:
+                        if self.setbuttons[index+i].cget('bg') == "dark gray":
+                            return
+                    else:
+                        if self.enemys[index+i][0] == 1:
+                            return
+                for i in range(whichships[eorp].getsize()):
+                    if eorp == 0:
+                        self.setbuttons[index+i].configure(bg = "dark gray")
+                    else:
+                        self.enemys[index+i] = (1, self.shipsindex)
             else:
                 return
 
-        self.ships[self.shipsindex].place(index)
+        whichships[eorp].place(index)
         return
 
     def shipsize(self, size):
@@ -173,12 +244,14 @@ class Ship():
     sunk = None
     vertical = True
     startindex = -1
+    cells = []
 
     def __init__(self, size):
         self.length = size
         self.sunk = False
 
-    def shot(self):
+    def hit(self):
+        self.hits += 1
         return
 
     def issunk(self):
@@ -207,5 +280,6 @@ class Ship():
 
     def getsize(self):
         return self.length
+
     
 game = GameBoard()
